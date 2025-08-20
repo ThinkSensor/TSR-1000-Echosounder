@@ -1,2 +1,3 @@
-# tsr-echosounder-py
-Python code for communicating with Think Sensor Research Echosounder
+# TSR-1000-Echosounder
+User manuals, documentation and example code for TSR-1000 Echosounder
+
