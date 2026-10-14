@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TSR-ECHO Sonar Configuration &amp; Viewer</title>
+<style>
+:root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color:#1f2937; background:#eef2f6; }
+* { box-sizing:border-box; }
+body { margin:0; }
+header { background:#fff; border-bottom:1px solid #d7dde5; padding:18px 24px; display:flex; align-items:center; gap:18px; }
+.logo { width:90px; height:58px; border:1px dashed #9aa5b1; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#6b7280; font-size:12px; overflow:hidden; }
+.logo img { max-width:100%; max-height:100%; object-fit:contain; }
+h1 { margin:0; font-size:24px; font-weight:650; }
+.subtitle { color:#6b7280; margin-top:3px; font-size:13px; }
+main { max-width:1120px; margin:20px auto; padding:0 16px 40px; }
+.card { background:#fff; border:1px solid #d7dde5; border-radius:9px; padding:16px; margin-bottom:16px; box-shadow:0 1px 2px rgba(0,0,0,.03); }
+.connection { display:grid; grid-template-columns:auto 180px auto auto 1fr; gap:10px; align-items:center; }
+button, select, input { font:inherit; }
+button { border:1px solid #9ca3af; border-radius:6px; background:#fff; padding:8px 13px; cursor:pointer; }
+button.primary { background:#1f5f8b; border-color:#1f5f8b; color:#fff; }
+button:disabled { opacity:.5; cursor:not-allowed; }
+select, input[type=number], input[type=text] { width:100%; border:1px solid #aeb7c2; border-radius:5px; padding:7px 8px; background:#fff; }
+.status { justify-self:end; font-size:13px; }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#9ca3af; margin-right:6px; }
+.dot.connected { background:#218739; }
+.toolbar { display:flex; gap:10px; align-items:center; justify-content:flex-end; margin:0 0 16px; }
+.toolbar .grow { flex:1; }
+.category { background:#fff; border:1px solid #d7dde5; border-radius:9px; margin-bottom:14px; overflow:hidden; }
+.category h2 { margin:0; padding:11px 15px; font-size:17px; background:#f7f9fb; border-bottom:1px solid #e1e6eb; }
+.param { display:grid; grid-template-columns:minmax(220px,1.3fr) minmax(180px,1fr) 100px; gap:12px; padding:9px 15px; align-items:center; border-bottom:1px solid #eef1f4; }
+.param:last-child { border-bottom:0; }
+.param.changed { background:#fff9df; }
+.label { font-weight:550; display:flex; align-items:center; gap:7px; }
+.help-button { width:22px; height:22px; padding:0; border-radius:50%; border:1px solid #9ca3af; background:#f8fafc; color:#475467; font-size:12px; font-weight:700; line-height:20px; flex:0 0 auto; }
+.help-button:hover, .help-button:focus { background:#eaf2f8; border-color:#6b879b; outline:none; }
+.help-panel { white-space:pre-line; grid-column:1 / -1; display:none; margin:-2px 0 4px; padding:10px 12px; border-left:3px solid #8aa9bd; background:#f7fafc; color:#475467; font-size:13px; line-height:1.45; border-radius:0 5px 5px 0; }
+.help-panel.open { display:block; }
+.units { color:#667085; font-size:13px; }
+.readonly { color:#374151; background:#f3f5f7; padding:7px 8px; border-radius:5px; min-height:35px; overflow-wrap:anywhere; }
+.checkbox-wrap { display:flex; align-items:center; min-height:35px; }
+.actions { position:sticky; bottom:0; padding:12px 0; background:linear-gradient(to bottom,rgba(238,242,246,0),#eef2f6 35%); display:flex; justify-content:flex-end; gap:10px; }
+details.card { padding:0; }
+details.card summary { padding:14px 16px; cursor:pointer; font-weight:600; }
+#log { margin:0; padding:0 16px 16px; white-space:pre-wrap; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; max-height:260px; overflow:auto; }
+.notice { color:#8a4b08; font-size:13px; margin-top:10px; }
+.empty { text-align:center; color:#6b7280; padding:35px 15px; }
+@media(max-width:720px) {
+  .connection { grid-template-columns:1fr 1fr; }
+  .status { justify-self:start; }
+  .param { grid-template-columns:1fr; gap:5px; }
+  .units { padding-bottom:3px; }
+}
+
+.suggestion-wrap { position:relative; display:inline-flex; margin-left:6px; vertical-align:middle; }
+.suggestion-button { width:28px; height:28px; padding:0; border:1px solid #9ca3af; border-radius:4px; background:#f8fafc; color:#475467; cursor:pointer; font-size:11px; }
+.suggestion-button:hover, .suggestion-button:focus { background:#eaf2f8; border-color:#6b879b; outline:none; }
+.suggestion-menu { display:none; position:absolute; z-index:20; right:0; top:calc(100% + 3px); min-width:86px; max-height:240px; overflow-y:auto; padding:4px; background:#fff; border:1px solid #cbd5e1; border-radius:5px; box-shadow:0 5px 14px rgba(0,0,0,.16); }
+.suggestion-menu.open { display:block; }
+.suggestion-item { display:block; width:100%; padding:5px 9px; border:0; border-radius:3px; background:transparent; text-align:right; cursor:pointer; color:#1f2937; }
+.suggestion-item:hover, .suggestion-item:focus { background:#eef2f6; outline:none; }
+
+.param > div:nth-child(2) { white-space:nowrap; }
+.param > div:nth-child(2) > input[type="number"] { vertical-align:middle; }
+.suggestion-wrap { vertical-align:middle; flex:0 0 auto; }
+
+/* Pop-up suggestion menus must be allowed to extend beyond their category card. */
+.category { overflow: visible; }
+
+/* Keep numeric field, preset arrow and units within their grid columns. */
+.param { grid-template-columns: minmax(220px,1.3fr) minmax(0,1fr) 100px; }
+.param > div:nth-child(2) { min-width:0; display:flex; align-items:center; gap:6px; }
+.param > div:nth-child(2) > input[type="number"] { width:100%; min-width:0; flex:1 1 auto; }
+.param > div:nth-child(2) > select { min-width:0; max-width:100%; }
+.suggestion-wrap { margin-left:0; flex:0 0 auto; }
+.units { min-width:0; }
+@media(max-width:720px) { .param { grid-template-columns:1fr; } }
+
+.tabs { display:flex; gap:8px; margin-bottom:16px; }
+.tabs button.active { background:#1f5f8b; color:white; border-color:#1f5f8b; }
+.viewer-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.viewer-controls label { display:flex; align-items:center; gap:7px; }
+.viewer-controls select,.viewer-controls input { width:auto; }
+#plot { width:100%; height:440px; border:1px solid #cbd5e1; border-radius:5px; background:white; }
+#viewerInfo { color:#475467; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><img src="TSR Logo_web.png" alt="Logo" onerror="this.style.display='none';this.parentElement.append('LOGO')"></div>
+  <div><h1>TSR-ECHO Sonar Configuration</h1><div class="subtitle" id="firmwareVersion">Firmware version: —</div></div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="connection">
+      <button id="connectBtn" class="primary">Connect…</button>
+      <select id="baud">
+        <option>9600</option><option>19200</option><option>38400</option><option>57600</option>
+        <option selected>115200</option><option>230400</option><option>460800</option><option>921600</option>
+      </select>
+      <button id="refreshBtn" disabled>Refresh (C3)</button>
+      <button id="disconnectBtn" disabled>Disconnect</button>
+      <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">Disconnected</span></div>
+    </div>
+    <div id="serialNotice" class="notice" hidden></div>
+  </section>
+
+  <nav class="tabs" aria-label="Application tabs">
+    <button id="configTab" class="active" type="button">Configuration</button>
+    <button id="viewerTab" type="button">Ping Viewer</button>
+  </nav>
+  <section id="configPane">
+  <div class="toolbar">
+    <div class="grow"><label><input type="checkbox" id="advanced"> Show advanced settings</label></div>
+    <span id="changeCount">No pending changes</span>
+  </div>
+
+  <div id="parameters"><div class="card empty">Connect to the TSR-ECHO to load parameters.</div></div>
+
+  <div class="actions">
+    <button id="revertBtn" disabled>Revert</button>
+    <button id="applyBtn" class="primary" disabled>Apply Changes</button>
+  </div>
+
+  </section>
+  <section id="viewerPane" hidden>
+    <div class="card viewer-controls">
+      <label>Report <select id="viewerMode"><option value="R">Raw (R)</option><option value="F">Filtered (F)</option><option value="M">Magnitude (M)</option></select></label>
+      <label id="viewerDecWrap">Decimation <input id="viewerDec" type="number" min="1" step="1" value="1" style="width:80px"></label>
+      <label id="viewerScaleWrap">Magnitude scale <select id="viewerScale"><option value="linear">Linear</option><option value="db">dB (relative)</option></select></label>
+      <button id="pingBtn" class="primary" disabled>Ping</button>
+      <span id="viewerInfo">Connect to the sonar to capture a ping.</span>
+    </div>
+    <div class="card"><canvas id="plot" aria-label="Sonar return plot"></canvas></div>
+  </section>
+  <details class="card">
+    <summary>Communications Log</summary>
+    <pre id="log"></pre>
+  </details>
+</main>
+
+<script src="parameters.js"></script>
+<script src="serialports.js"></script>
+<script src="tsr-echo-serial.js"></script>
+<script>
+document.addEventListener("click", () => {
+  document.querySelectorAll(".suggestion-menu.open").forEach(menu => menu.classList.remove("open"));
+});
+
+
+"use strict";
+
+let currentValues = {};
+let editedValues = {};
+let lastDefinitions = {};
+const $ = id => document.getElementById(id);
+const serial = new TSRECHOSerial({log: (kind, message) => log(kind, message)});
+let connected = false;
+let busy = false;
+let serialQueue = Promise.resolve();
+function serialJob(fn) {
+  const job = serialQueue.then(async () => {
+    if (!connected) throw Error("Not connected");
+    busy = true; updateButtons();
+    try { return await fn(); }
+    finally { busy = false; updateButtons(); }
+  });
+  serialQueue = job.catch(() => {});
+  return job;
+}
+function log(direction, text) {
+  const t = new Date().toLocaleTimeString();
+  $("log").textContent += `${t} ${direction}: ${text}\n`;
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function updateButtons() {
+  $("connectBtn").disabled = connected || busy;
+  $("disconnectBtn").disabled = !connected || busy;
+  $("refreshBtn").disabled = !connected || busy;
+  $("baud").disabled = connected || busy;
+  $("pingBtn").disabled = !connected || busy;
+  $("statusDot").classList.toggle("connected", connected);
+  $("statusText").textContent = connected ? "Connected" : "Disconnected";
+  updateChangeState();
+}
+function definitions() { return (typeof parameterDefinitions === "object") ? parameterDefinitions : {}; }
+async function connectSerial() {
+  if (!("serial" in navigator)) { $("serialNotice").hidden=false; $("serialNotice").textContent="Web Serial requires a compatible Chromium browser."; return; }
+  try {
+    await serial.connect(Number($("baud").value), typeof serialPortFilters === "undefined" ? [] : serialPortFilters);
+    if (!await serial.prompt()) throw Error("No command prompt");
+    connected = true;
+    updateButtons();
+    await refreshParameters();
+  } catch (e) {
+    log("ERROR", e.message);
+    try { await serial.disconnect(); } catch (_) {}
+    connected = false; updateButtons();
+  }
+}
+async function disconnectSerial() {
+  try { await serial.disconnect(); } catch(e) { log("ERROR",e.message); }
+  connected=false; currentValues={}; editedValues={};
+  $("parameters").innerHTML='<div class="card empty">Connect to the TSR-ECHO to load parameters.</div>';
+  $("firmwareVersion").textContent="Firmware version: —";
+  updateButtons();
+}
+async function refreshParameters() {
+  try {
+    await serialJob(async () => {
+      const data = await serial.c3();
+      currentValues = data;
+      editedValues = {};
+      $("firmwareVersion").textContent = data.Version ? `Firmware version: ${data.Version}` : "Firmware version: —";
+      renderParameters();
+    });
+  } catch (e) { log("ERROR", `C3: ${e.message}`); }
+}
+
+function getDef(name, value) {
+  const d = definitions()[name];
+  if (d) return {...d};
+  return {
+    label: name,
+    category: "Unknown / Firmware Parameters",
+    type: typeof value === "number" ? "number" : "string",
+    editable: false,
+    advanced: true,
+    help: "Returned by firmware but not defined in parameters.js"
+  };
+}
+
+function displayValue(value, def) {
+  if (def.displayScale) return Number(value) / def.displayScale;
+  return value;
+}
+
+function rawValue(value, def) {
+  if (def.displayScale) return Math.round(Number(value) * def.displayScale);
+  if (def.type === "integer") return parseInt(value, 10);
+  if (def.type === "number") return Number(value);
+  return value;
+}
+
+function valuesEqual(a,b) {
+  return (typeof a === "number" && typeof b === "number") ? Object.is(a,b) : String(a) === String(b);
+}
+
+function effectiveParameterValue(name) {
+  return Object.prototype.hasOwnProperty.call(editedValues, name)
+    ? editedValues[name] : currentValues[name];
+}
+
+function visibleByCondition(def) {
+  if (!def.visibleWhen) return true;
+  const { parameter, gt, gte, lt, lte, eq, ne } = def.visibleWhen;
+  const value = Number(effectiveParameterValue(parameter));
+  if (!Number.isFinite(value)) return false;
+  return (gt === undefined || value > gt) &&
+         (gte === undefined || value >= gte) &&
+         (lt === undefined || value < lt) &&
+         (lte === undefined || value <= lte) &&
+         (eq === undefined || value === eq) &&
+         (ne === undefined || value !== ne);
+}
+
+function minimumFor(def) {
+  const staticMin = def.min === undefined ? -Infinity : Number(def.min);
+  if (!def.minFrom) return staticMin;
+  const source = effectiveParameterValue(def.minFrom);
+  if (source === undefined || source === null || source === "") return staticMin;
+  const dynamicMin = Number(source);
+  return Number.isFinite(dynamicMin) ? Math.max(staticMin, dynamicMin) : staticMin;
+}
+
+function maximumFor(def) {
+  const staticMax = def.max === undefined ? Infinity : Number(def.max);
+  if (!def.maxFrom) return staticMax;
+  const dynamicMax = Number(effectiveParameterValue(def.maxFrom));
+  return Number.isFinite(dynamicMax) ? Math.min(staticMax, dynamicMax) : staticMax;
+}
+
+function renderParameters() {
+  const showAdvanced = $("advanced").checked;
+  const groups = new Map();
+  lastDefinitions = {};
+
+  for (const [name, value] of Object.entries(currentValues)) {
+    const def = getDef(name, value);
+    lastDefinitions[name] = def;
+    if (def.hidden || !visibleByCondition(def)) continue;
+    if (def.advanced && !showAdvanced) continue;
+    if (!groups.has(def.category || "Other")) groups.set(def.category || "Other", []);
+    groups.get(def.category || "Other").push([name, value, def]);
+  }
+
+  const root = $("parameters");
+  root.innerHTML = "";
+  if (!groups.size) {
+    root.innerHTML = '<div class="card empty">No parameters to display.</div>';
+    updateChangeState();
+    return;
+  }
+
+  const orderedGroups = [...groups.entries()].sort(([a], [b]) => {
+    const aDef = (typeof categoryDefinitions !== "undefined" && categoryDefinitions[a]) || {};
+    const bDef = (typeof categoryDefinitions !== "undefined" && categoryDefinitions[b]) || {};
+    const aOrder = Number.isFinite(aDef.order) ? aDef.order : 900;
+    const bOrder = Number.isFinite(bDef.order) ? bDef.order : 900;
+    return (aOrder - bOrder) || a.localeCompare(b);
+  });
+
+  for (const [category, entries] of orderedGroups) {
+    const section = document.createElement("section");
+    section.className = "category";
+    const h = document.createElement("h2");
+    const categoryDef =
+      (typeof categoryDefinitions !== "undefined" && categoryDefinitions[category]) || {};
+    h.textContent = categoryDef.title || category;
+    section.appendChild(h);
+
+    const orderedEntries = entries
+      .map((entry, index) => ({ entry, index }))
+      .sort((a, b) => {
+        const aOrder = Number.isFinite(a.entry[2].order) ? a.entry[2].order : 100000 + a.index;
+        const bOrder = Number.isFinite(b.entry[2].order) ? b.entry[2].order : 100000 + b.index;
+        return aOrder - bOrder;
+      })
+      .map(item => item.entry);
+
+    for (const [name, original, def] of orderedEntries) {
+      const row = document.createElement("div");
+      row.className = "param";
+      row.dataset.name = name;
+
+      const label = document.createElement("div");
+      label.className = "label";
+      const labelText = document.createElement("span");
+      labelText.textContent = def.label || name;
+      label.appendChild(labelText);
+
+      let helpPanel = null;
+      if (def.help) {
+        const helpButton = document.createElement("button");
+        helpButton.type = "button";
+        helpButton.className = "help-button";
+        helpButton.textContent = "?";
+        helpButton.title = "Show help";
+        helpButton.setAttribute("aria-label", `Help for ${def.label || name}`);
+        helpButton.setAttribute("aria-expanded", "false");
+
+        helpPanel = document.createElement("div");
+        helpPanel.className = "help-panel";
+        helpPanel.textContent = def.help;
+
+        helpButton.addEventListener("click", () => {
+          const wasOpen = helpPanel.classList.contains("open");
+          document.querySelectorAll(".help-panel.open").forEach(p => p.classList.remove("open"));
+          document.querySelectorAll(".help-button[aria-expanded='true']").forEach(b => {
+            b.setAttribute("aria-expanded", "false");
+            b.title = "Show help";
+          });
+          if (!wasOpen) {
+            helpPanel.classList.add("open");
+            helpButton.setAttribute("aria-expanded", "true");
+            helpButton.title = "Hide help";
+          }
+        });
+        label.appendChild(helpButton);
+      }
+
+      const control = document.createElement("div");
+      const effective = Object.prototype.hasOwnProperty.call(editedValues,name) ? editedValues[name] : original;
+
+      if (def.editable === false || def.readonly) {
+        const v = document.createElement("div");
+        v.className = "readonly";
+        v.textContent = formatReadonly(effective, def);
+        control.appendChild(v);
+      } else if (def.type === "boolean") {
+        const wrap = document.createElement("div");
+        wrap.className = "checkbox-wrap";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Number(effective) !== 0;
+        input.addEventListener("change", () => setEdited(name, input.checked ? 1 : 0));
+        wrap.appendChild(input);
+        control.appendChild(wrap);
+      } else if (def.type === "select") {
+        const input = document.createElement("select");
+        for (const [v, text] of Object.entries(def.options || {})) {
+          const option = document.createElement("option");
+          option.value = v;
+          option.textContent = text;
+          input.appendChild(option);
+        }
+        input.value = String(effective);
+        input.addEventListener("change", () => setEdited(name, rawValue(input.value, {...def,type:"integer"})));
+        control.appendChild(input);
+      } else {
+        const input = document.createElement("input");
+        input.type = (def.type === "string") ? "text" : "number";
+        if (Array.isArray(def.suggestions) && input.type === "number") {
+          const suggestionWrap = document.createElement("span");
+          suggestionWrap.className = "suggestion-wrap";
+
+          const suggestionButton = document.createElement("button");
+          suggestionButton.type = "button";
+          suggestionButton.className = "suggestion-button";
+          suggestionButton.textContent = "▼";
+          suggestionButton.title = "Choose a preset value";
+          suggestionButton.setAttribute("aria-label", "Choose a preset value");
+
+          const suggestionMenu = document.createElement("div");
+          suggestionMenu.className = "suggestion-menu";
+
+          for (const suggestion of def.suggestions) {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "suggestion-item";
+            item.textContent = String(suggestion);
+            item.addEventListener("click", (event) => {
+              event.stopPropagation();
+              input.value = String(suggestion);
+              setEdited(name, rawValue(input.value, def));
+              suggestionMenu.classList.remove("open");
+            });
+            suggestionMenu.appendChild(item);
+          }
+
+          suggestionButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            document.querySelectorAll(".suggestion-menu.open").forEach(menu => {
+              if (menu !== suggestionMenu) menu.classList.remove("open");
+            });
+            suggestionMenu.classList.toggle("open");
+          });
+
+          suggestionWrap.append(suggestionButton, suggestionMenu);
+          input._suggestionWrap = suggestionWrap;
+        }
+        if (Number.isFinite(minimumFor(def))) input.min = displayValue(minimumFor(def), def);
+        const allowedMax = maximumFor(def);
+        if (Number.isFinite(allowedMax)) input.max = allowedMax;
+        if (def.step !== undefined) input.step = def.step;
+        const shownValue = displayValue(effective, def);
+        input.value = (def.decimals !== undefined && Number.isFinite(Number(shownValue)))
+          ? Number(shownValue).toFixed(def.decimals)
+          : shownValue;
+        input.addEventListener("change", () => setEdited(name, rawValue(input.value, def)));
+        control.appendChild(input);
+        if (input._suggestionWrap) {
+          control.appendChild(input._suggestionWrap);
+        }
+      }
+
+      const units = document.createElement("div");
+      units.className = "units";
+      units.textContent = def.units || (def.advanced ? "Advanced" : "");
+
+      row.append(label, control, units);
+      if (helpPanel) row.appendChild(helpPanel);
+      section.appendChild(row);
+    }
+    root.appendChild(section);
+  }
+  updateChangeState();
+}
+
+function formatReadonly(value, def) {
+  const v = displayValue(value, def);
+  if (def.type === "boolean") return Number(value) ? "Enabled" : "Disabled";
+  if (def.type === "select" && def.options) return def.options[String(value)] ?? value;
+  if (def.decimals !== undefined && typeof v === "number") return v.toFixed(def.decimals);
+  return String(v);
+}
+
+function setEdited(name, value) {
+  const def = parameterDefinitions[name] || {};
+  const numeric = def.type === "integer" || def.type === "number";
+  if (numeric && (!Number.isFinite(Number(value)) ||
+      Number(value) < minimumFor(def) * (def.displayScale || 1) ||
+      Number(value) > maximumFor(def) * (def.displayScale || 1))) {
+    alert(`${def.label || name} is outside its allowed range.`);
+    renderParameters();
+    return;
+  }
+  if (valuesEqual(value, currentValues[name])) delete editedValues[name];
+  else editedValues[name] = value;
+  // Keep dependent values valid when their limiting parameter changes.
+  for (const [dependent, dependentDef] of Object.entries(parameterDefinitions)) {
+    if ((dependentDef.maxFrom !== name && dependentDef.minFrom !== name) || !(dependent in currentValues)) continue;
+    const low = minimumFor(dependentDef);
+    const high = maximumFor(dependentDef);
+    const existing = Number(effectiveParameterValue(dependent));
+    if (!Number.isFinite(existing)) continue;
+    const adjusted = Math.min(high, Math.max(low, existing));
+    if (adjusted !== existing) {
+      if (valuesEqual(adjusted, currentValues[dependent])) delete editedValues[dependent];
+      else editedValues[dependent] = adjusted;
+    }
+  }
+  renderParameters();
+}
+
+function updateChangeState() {
+  const n = Object.keys(editedValues).length;
+  $("changeCount").textContent = n ? `${n} pending change${n===1?"":"s"}` : "No pending changes";
+  $("applyBtn").disabled = !connected || busy || n === 0;
+  $("revertBtn").disabled = busy || n === 0;
+  document.querySelectorAll(".param").forEach(row => row.classList.toggle("changed",
+    Object.prototype.hasOwnProperty.call(editedValues,row.dataset.name)));
+}
+
+async function applyChanges() {
+  if (!Object.keys(editedValues).length) return true;
+  try {
+    await serialJob(async () => {
+      for (const [name,value] of Object.entries(editedValues)) {
+        const def = parameterDefinitions[name] || {};
+        if ((def.type === "integer" || def.type === "number") &&
+          (!Number.isFinite(Number(value)) || Number(value) < minimumFor(def) * (def.displayScale || 1) || Number(value) > maximumFor(def) * (def.displayScale || 1)))
+          throw Error(`${name} is outside its allowed range`);
+      }
+      await serial.c2(editedValues);
+      if (!await serial.prompt("post-C2 command prompt")) throw Error("No prompt after applying settings");
+      const data=await serial.c3();
+      currentValues=data; editedValues={};
+      $("firmwareVersion").textContent=data.Version ? `Firmware version: ${data.Version}` : "Firmware version: —";
+      renderParameters();
+    });
+    return true;
+  } catch(e) { log("ERROR", `C2: ${e.message}`); return false; }
+}
+function viewerModeChanged() {
+  const mode=$("viewerMode").value, dec=$("viewerDec");
+  dec.disabled=mode==="R";
+  dec.min=mode==="M" ? 8 : mode==="R" ? 0 : 1;
+  if (mode!=="R" && Number(dec.value)<Number(dec.min)) dec.value=dec.min;
+  $("viewerDecWrap").style.opacity=mode==="R" ? ".5" : "1";
+  $("viewerScale").disabled=mode!=="M";
+  $("viewerScaleWrap").style.opacity=mode==="M" ? "1" : ".5";
+}
+function showTab(which) {
+  $("configPane").hidden=which!=="config";
+  $("viewerPane").hidden=which!=="viewer";
+  $("configTab").classList.toggle("active",which==="config");
+  $("viewerTab").classList.toggle("active",which==="viewer");
+  if(which==="viewer" && lastPingPlot)drawPing(lastPingPlot.r,lastPingPlot.config);
+}
+let lastPingPlot=null;
+function niceTicks(min,max,count=5) {
+  const span=Math.max(1e-12,max-min), rough=span/count;
+  const base=Math.pow(10,Math.floor(Math.log10(rough)));
+  const m=rough/base, step=(m<=1?1:m<=2?2:m<=5?5:10)*base;
+  const ticks=[];
+  for(let v=Math.ceil(min/step)*step;v<=max+step*1e-8;v+=step) ticks.push(v);
+  return ticks;
+}
+function tickLabel(v) {
+  if(Math.abs(v)<1e-9)return "0";
+  if(Math.abs(v)>=10000 || Math.abs(v)<0.001)return v.toExponential(1);
+  return Number(v.toPrecision(5)).toString();
+}
+function drawPing(r, config) {
+  if(!r || !r.datasets || !r.datasets[0])return;
+  const source=r.datasets[0],mode=r.reportType;
+  const db=mode==="M" && $("viewerScale").value==="db";
+  let values=source;
+  if(db){
+    let peak=0;
+    for(const v of source)if(Number.isFinite(v))peak=Math.max(peak,Math.abs(v));
+    const floor=-80;
+    values=Float64Array.from(source,v=>peak>0 && Number.isFinite(v) ? Math.max(floor,20*Math.log10(Math.max(Math.abs(v)/peak,1e-12))) : floor);
+  }
+  const c=$("plot"),rect=c.getBoundingClientRect(),ratio=window.devicePixelRatio||1;
+  const w=Math.max(320,rect.width),h=Math.max(250,rect.height);
+  c.width=Math.round(w*ratio);c.height=Math.round(h*ratio);
+  const g=c.getContext("2d");g.setTransform(ratio,0,0,ratio,0,0);
+  g.clearRect(0,0,w,h);
+  const left=76,right=22,top=54,bottom=60,pw=w-left-right,ph=h-top-bottom;
+  const titles={R:"Raw ADC Return",F:"Filtered Sonar Return",M:"Sonar Return Magnitude"};
+  const ylabel=mode==="R"?"ADC counts":mode==="F"?"Filtered amplitude":db?"Relative magnitude (dB)":"Magnitude (linear)";
+  const fs=Number(config.SamplingFrequency);
+  const dec=Number(r.decimationFactor);
+  // ADC samples are taken at SamplingFrequency. Filtered and magnitude
+  // output advance by 4 * DecimationFactor ADC samples per output point.
+  const stride=mode==="R"?1:4*Math.max(1,dec);
+  const rangeValid=Number.isFinite(fs)&&fs>0&&Number.isFinite(Number(config.SpeedOfSound))&&Number(config.SpeedOfSound)>0;
+  const speed=Number(config.SpeedOfSound);
+  const dx=rangeValid ? speed*stride/(2*fs) : 1;
+  // Acquisition currently begins at ADC sample zero. Do not add RangeStart
+  // until firmware actually starts sampling at the requested range offset.
+  const xMax=Math.max(dx,(source.length-1)*dx),xlabel=rangeValid?"Range (m)":"Output sample index";
+  let lo=Infinity,hi=-Infinity;
+  for(const v of values)if(Number.isFinite(v)){lo=Math.min(lo,v);hi=Math.max(hi,v)}
+  if(!Number.isFinite(lo))return;
+  if(db){lo=Math.min(-80,lo);hi=0}
+  else if(mode==="M"){lo=0;hi=Math.max(1e-9,hi*1.05)}
+  else {lo=Math.min(0,lo);hi=Math.max(0,hi);if(hi<=lo){hi+=1;lo-=1}const pad=(hi-lo)*0.05;lo-=pad;hi+=pad}
+  const xp=x=>left+x/xMax*pw,yp=y=>top+(hi-y)/(hi-lo)*ph;
+  g.font="12px system-ui, sans-serif";g.fillStyle="#25354b";g.textAlign="center";
+  g.font="600 16px system-ui, sans-serif";g.fillText(titles[mode]||"Sonar Return",w/2,25);
+  g.font="12px system-ui, sans-serif";
+  const xticks=niceTicks(0,xMax,Math.max(3,Math.floor(pw/90)));
+  const yticks=niceTicks(lo,hi,5);
+  g.strokeStyle="#e4e9f0";g.lineWidth=1;
+  for(const v of xticks){const x=xp(v);g.beginPath();g.moveTo(x,top);g.lineTo(x,top+ph);g.stroke();g.fillStyle="#475467";g.textAlign="center";g.fillText(tickLabel(v),x,top+ph+20)}
+  for(const v of yticks){const y=yp(v);g.beginPath();g.moveTo(left,y);g.lineTo(left+pw,y);g.stroke();g.fillStyle="#475467";g.textAlign="right";g.fillText(tickLabel(v),left-9,y+4)}
+  g.strokeStyle="#8290a2";g.strokeRect(left,top,pw,ph);
+  g.fillStyle="#25354b";g.textAlign="center";g.fillText(xlabel,left+pw/2,h-15);
+  g.save();g.translate(19,top+ph/2);g.rotate(-Math.PI/2);g.fillText(ylabel,0,0);g.restore();
+  g.strokeStyle="#1686c2";g.lineWidth=1.4;g.beginPath();let drawing=false;
+  // Limit canvas segments to the pixel resolution for large sonar frames.
+  const step=Math.max(1,Math.floor(values.length/(pw*2)));
+  for(let i=0;i<values.length;i+=step){const v=values[i];if(!Number.isFinite(v)){drawing=false;continue}const x=xp(i*dx),y=yp(v);if(!drawing){g.moveTo(x,y);drawing=true}else g.lineTo(x,y)}
+  if(values.length>1 && (values.length-1)%step!==0){const i=values.length-1,v=values[i];if(Number.isFinite(v))g.lineTo(xp(i*dx),yp(v))}
+  g.stroke();
+}
+async function capturePing() {
+  if (Object.keys(editedValues).length) {
+    if (!await applyChanges()) return;
+  }
+  try {
+    await serialJob(async () => {
+      const mode=$("viewerMode").value, dec=Number($("viewerDec").value);
+      const r=await serial.report(mode,dec);
+      $("viewerInfo").textContent=`${r.type}, dec=${r.decimationFactor}, ${r.transmittedElementsPerSet} elements`;
+      lastPingPlot={r,config:{...currentValues}};
+      drawPing(lastPingPlot.r,lastPingPlot.config);
+      // C4 changes processing mode; refresh C3 before returning to parameter editing.
+      const data=await serial.c3();
+      currentValues=data; editedValues={};
+      $("firmwareVersion").textContent=data.Version ? `Firmware version: ${data.Version}` : "Firmware version: —";
+      renderParameters();
+    });
+  } catch(e) {log("ERROR", `Ping: ${e.message}`);}
+}
+
+$("connectBtn").addEventListener("click", connectSerial);
+$("disconnectBtn").addEventListener("click", disconnectSerial);
+$("refreshBtn").addEventListener("click", refreshParameters);
+$("advanced").addEventListener("change", renderParameters);
+$("revertBtn").addEventListener("click", () => { editedValues={}; renderParameters(); });
+$("applyBtn").addEventListener("click", applyChanges);
+$("configTab").addEventListener("click",()=>showTab("config"));
+$("viewerTab").addEventListener("click",()=>showTab("viewer"));
+$("viewerMode").addEventListener("change",viewerModeChanged);
+$("viewerScale").addEventListener("change",()=>{if(lastPingPlot)drawPing(lastPingPlot.r,lastPingPlot.config)});
+window.addEventListener("resize",()=>{if(lastPingPlot && !$("viewerPane").hidden)drawPing(lastPingPlot.r,lastPingPlot.config)});
+$("pingBtn").addEventListener("click",capturePing);
+viewerModeChanged();
+$("baud").value = localStorage.getItem("tsrEchoBaud") || "115200";
+$("baud").addEventListener("change", () => localStorage.setItem("tsrEchoBaud",$("baud").value));
+
+if (!("serial" in navigator)) {
+  $("serialNotice").hidden = false;
+  $("serialNotice").textContent =
+    "This browser does not expose the Web Serial API. Try a Chromium-based browser; if local-file Web Serial is restricted by your browser, serve this folder from localhost.";
+}
+</script>
+</body>
+</html>

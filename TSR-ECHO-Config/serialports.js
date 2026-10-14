@@ -1,0 +1,1 @@
+const serialPortFilters=[{usbVendorId:0x0403},{usbVendorId:0x10C4}];
